@@ -1,0 +1,5 @@
+/.env
+/.idea
+/.vscode
+/palworld_env
+__pycache__/
