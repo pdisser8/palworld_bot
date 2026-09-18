@@ -1,6 +1,10 @@
 @echo off
 cd /d "%~dp0"
 
+del /q "palworld_update_status.txt" 2>nul
+
+del /q "palworld_update_output.log" 2>nul
+
 python --version >nul 2>&1
 if errorlevel 1 (
     echo Python is not installed or is not available on PATH.
@@ -25,6 +29,12 @@ if not exist "palworld_env\Scripts\activate.bat" (
     )
 ) else (
     echo Using existing virtual environment.
+)
+
+palworld_env\Scripts\python.exe palworld_updater.py
+if errorlevel 1 (
+    echo.
+    echo Palworld updater failed to run.
 )
 
 palworld_env\Scripts\python.exe palworld_bot.py

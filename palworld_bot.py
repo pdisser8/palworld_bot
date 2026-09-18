@@ -36,6 +36,7 @@ SERVER_CWD = os.getenv("SERVER_CWD") or (
     os.path.dirname(SERVER_EXE_PATH) if SERVER_EXE_PATH else None
 )
 SERVER_LOG_PATH = os.getenv("SERVER_LOG_PATH", "palworld_server.log")
+UPDATE_STATUS_PATH = Path(__file__).with_name("palworld_update_status.txt")
 PLAYER_EVENT_PATTERN = os.getenv(
     "PLAYER_EVENT_PATTERN", r"login|logged in|joined|connected"
 )
@@ -117,6 +118,24 @@ async def stream_server_output(channel: discord.abc.Messageable) -> None:
         server_process = None
 
 
+async def announce_pending_update(channel: discord.abc.Messageable) -> None:
+    if not UPDATE_STATUS_PATH.exists():
+        return
+
+    try:
+        message = UPDATE_STATUS_PATH.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return
+
+    if message:
+        await channel.send(f"📦 {message}")
+
+    try:
+        UPDATE_STATUS_PATH.unlink()
+    except OSError:
+        pass
+
+
 async def launch_server(channel: discord.abc.Messageable) -> None:
     global server_process
 
@@ -177,6 +196,7 @@ async def on_ready():
     if log_channel is None:
         print(f"Could not find LOG_CHANNEL_ID={LOG_CHANNEL_ID}")
         return
+    await announce_pending_update(log_channel)
     await launch_server(log_channel)
 
 
