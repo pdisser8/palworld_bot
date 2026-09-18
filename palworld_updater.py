@@ -6,8 +6,9 @@ import os
 import re
 import shlex
 import subprocess
-import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent
 STATUS_PATH = ROOT / "palworld_update_status.txt"
@@ -15,18 +16,7 @@ LOG_PATH = ROOT / "palworld_update_output.log"
 
 
 def load_env() -> None:
-    env_path = ROOT / ".env"
-    if not env_path.exists():
-        return
-
-    for raw_line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        os.environ.setdefault(key, value)
+    load_dotenv(ROOT / ".env", override=False)
 
 
 def get_updater_command() -> str | None:
@@ -76,8 +66,11 @@ def get_installed_version() -> str:
                 [
                     "powershell",
                     "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
                     "-Command",
-                    f"(Get-Item -LiteralPath '{str(exe_path).replace("'", "''")}').VersionInfo.FileVersion",
+                    "& { (Get-Item -LiteralPath $args[0]).VersionInfo.FileVersion }",
+                    str(exe_path),
                 ],
                 capture_output=True,
                 text=True,
@@ -140,26 +133,39 @@ def main() -> int:
         print("No Palworld updater configured; skipping update check.")
         return 0
 
+    old_version = get_installed_version()
     print(f"Running Palworld updater: {command}")
     return_code, output = run_updater(command)
 
-    if return_code == 0:
-        version = parse_version(output)
-        if version:
-            write_status(f"Found update, updated to {version}")
-            print(f"Found update, updated to {version}")
+    if return_code != 0:
+        if old_version != "unknown":
+            status = f"Found update, failed, still launching {old_version}"
         else:
-            write_status("Found update, updated successfully.")
-            print("Found update, updated successfully.")
+            status = "Found update, failed, still launching."
+        write_status(status)
+        print(status)
         return 0
 
-    old_version = get_installed_version()
+    new_version = get_installed_version()
+    if old_version != "unknown" and new_version != "unknown" and new_version != old_version:
+        status = f"Found update, updated to {new_version}"
+        write_status(status)
+        print(status)
+        return 0
+
+    parsed = parse_version(output)
+    if parsed:
+        status = f"Found update, updated to {parsed}"
+        write_status(status)
+        print(status)
+        return 0
+
     if old_version != "unknown":
-        write_status(f"Found update, failed, still launching {old_version}")
-        print(f"Found update, failed, still launching {old_version}")
+        status = f"Palworld update check complete; no update required. Still launching {old_version}"
     else:
-        write_status("Found update, failed, still launching.")
-        print("Found update, failed, still launching.")
+        status = "Palworld update check complete; no update required."
+    write_status(status)
+    print(status)
     return 0
 
 
