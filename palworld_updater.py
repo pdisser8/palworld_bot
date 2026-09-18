@@ -22,6 +22,13 @@ def load_env() -> None:
 
 def get_server_install_dir() -> Path | None:
     load_env()
+    server_exe = os.getenv("SERVER_EXE_PATH", "").strip()
+    if server_exe:
+        path = Path(server_exe)
+        folder = path.parent if path.suffix.lower() in (".exe", ".sh") or "palserver" in path.name.lower() else path
+        if folder.exists():
+            return folder
+
     candidates = [
         os.getenv("SERVER_EXE_PATH", ""),
         r"C:\Program Files (x86)\Steam\steamapps\common\PalServer\PalServer.exe",
@@ -30,6 +37,12 @@ def get_server_install_dir() -> Path | None:
         str(Path.home() / "Steam" / "steamapps" / "common" / "PalServer" / "PalServer.sh"),
         str(Path.home() / ".steam" / "steam" / "steamapps" / "common" / "PalServer" / "PalServer.sh"),
         str(Path.home() / "palworld" / "PalServer.sh"),
+        Path(r"C:\Program Files (x86)\Steam\steamapps\common\PalServer"),
+        Path(r"C:\PalServer"),
+        Path(r"C:\Palworld"),
+        Path.home() / "Steam" / "steamapps" / "common" / "PalServer",
+        Path.home() / ".steam" / "steam" / "steamapps" / "common" / "PalServer",
+        Path.home() / "palworld",
     ]
     for candidate in candidates:
         if not candidate:
@@ -37,6 +50,9 @@ def get_server_install_dir() -> Path | None:
         exe_path = Path(candidate)
         if exe_path.exists():
             return exe_path.parent
+    for folder in candidates:
+        if folder.exists():
+            return folder
     return None
 
 
@@ -132,9 +148,36 @@ def write_status(message: str) -> None:
     STATUS_PATH.write_text(message, encoding="utf-8")
 
 
+def ensure_server_stopped() -> None:
+    """Ensure no PalServer processes are locking game files during update."""
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/IM", "PalServer.exe"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        subprocess.run(
+            ["taskkill", "/F", "/IM", "PalServer-Win64-Shipping-Cmd.exe"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    else:
+        subprocess.run(
+            ["pkill", "-f", "PalServer"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+
+
 def run_updater(command: str) -> tuple[int, str]:
     command_text = command.strip()
     LOG_PATH.write_text("", encoding="utf-8")
+
+    # Stop any running server instances to prevent file locking (error 0x602 / exit 8)
+    ensure_server_stopped()
 
     try:
         if os.name == "nt":

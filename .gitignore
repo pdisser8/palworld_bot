@@ -3,3 +3,5 @@
 /.vscode
 /palworld_env
 __pycache__/
+*.log
+palworld_update_status.txt

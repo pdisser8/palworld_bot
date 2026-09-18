@@ -171,6 +171,11 @@ async def launch_server(channel: discord.abc.Messageable) -> None:
         await channel.send("⚠️ SERVER_EXE_PATH is not configured, skipping server launch.")
         return
 
+    exe_path = Path(SERVER_EXE_PATH)
+    if not exe_path.exists():
+        await channel.send(f"❌ Server executable not found at `{SERVER_EXE_PATH}`.")
+        return
+
     if server_process is not None and server_process.returncode is None:
         await channel.send("⚠️ Server process already appears to be running.")
         return
@@ -184,6 +189,18 @@ async def launch_server(channel: discord.abc.Messageable) -> None:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
+    try:
+        server_process = await asyncio.create_subprocess_exec(
+            SERVER_EXE_PATH,
+            *SERVER_ARGS,
+            cwd=SERVER_CWD,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        asyncio.create_task(stream_server_output(channel))
+    except Exception as exc:
+        server_process = None
+        await channel.send(f"❌ Failed to start Palworld server: {exc}")
 
     asyncio.create_task(stream_server_output(channel))
 
